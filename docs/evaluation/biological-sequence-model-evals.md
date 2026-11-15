@@ -329,6 +329,10 @@ even after reverse-complement augmentation. In that paper averaging the two stra
 **not** recover what augmentation achieves: it trails augmentation on the Matthews correlation
 coefficient in most of the comparisons reported, so measure the disagreement rather than assuming a fix.
 
+The model-by-model instances of these, with the repository and issue references, are on
+[`../models-and-compute/biological-sequence-models.md`](../models-and-compute/biological-sequence-models.md#loading-traps-that-change-the-numbers),
+together with each model's licence and tokenisation.
+
 **Recommended check.** Before any benchmark number: reproduce one published figure from the model's own
 paper or card, or at minimum show the forward pass differs from a randomly initialised copy; compare a
 sample of embeddings against a single-sequence, float32, processor-only run; and for a nucleotide model,
@@ -578,7 +582,7 @@ say which class each is, and the claim that survives is narrower and worth more.
 
 ---
 
-Last verified: 2026-11-15. New page, from a structured read of eleven DNA model papers, thirteen protein
+Last verified: 2026-11-15. (Additions 2026-11-15: a pointer from step 5 to the model-by-model loading traps and licences on `models-and-compute/biological-sequence-models.md`.) Last verified: 2026-11-15. New page, from a structured read of eleven DNA model papers, thirteen protein
 model papers, the RNA, codon and single-cell literature, eight benchmark suites, about twenty independent
 re-evaluations and the validation and statistics primary sources, each evaluation task recorded against
 eleven fixed columns with a verbatim quote. Two independent reviews then ran against it, one on

@@ -31,6 +31,7 @@ nav:
       - start-here/tags.md
   - Models & compute:
       - models-and-compute/open-weights-models.md
+      - models-and-compute/biological-sequence-models.md
       - models-and-compute/compute.md
       - models-and-compute/experiment-tracking.md
       - models-and-compute/safety-toolkits.md
