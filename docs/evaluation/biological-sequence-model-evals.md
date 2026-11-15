@@ -171,6 +171,19 @@ models beat it: ProtBERT 82.45, ESM-C 81.18, gLM2 80.57 and ESM-2 80.40 against 
 area under the receiver-operating-characteristic curve (AUROC) as percentages over n = 11 genomes. The
 third version's main text does not state the reversal, so a citation needs a version pin.
 
+**The applied literature is stricter than the model papers, and is the place to copy from.** The
+production tools built on protein language models separate train and test by homology *partitioning* at
+a stated threshold, not by clustering: 30 per cent global alignment identity in SignalP 6.0 (with three
+by two nested cross-validation), 30 per cent in DeepLoc 2.0, 25 per cent in NetSurfP-3.0, 20 per cent
+in BepiPred-3.0 against three external sets. The authors of the partitioning algorithm those tools use
+state that cluster-representative methods such as CD-HIT and MMseqs2 should not be used to make the
+split at all, because a cluster representative does not bound the identity between the two sides. Two
+of these tools also audit leakage in their *baselines* rather than only in their own data: one found 93
+per cent of its test proteins had above-30-per-cent-identity hits in a competitor's inference-time
+database and rebuilt the comparison; another publishes a column counting "# overlapping proteins with
+DeepTMHMM's train set". Copy that habit: the leak that matters is often in what you are comparing
+against.
+
 The opposite error exists. Roberts et al. 2017 show blocked folds can be "overly-pessimistic", because
 a held-out clade becomes an extrapolation rather than a held-out sample.
 
@@ -291,6 +304,17 @@ higher score. For RNA secondary structure under the leave-one-family-out divisio
 pre-trained model loses to an untrained thermodynamic method while another beats it in eight of nine
 families.
 
+**What the applied tools show, on their own strict splits.** Against a profile or alignment method the
+language model buys speed and coverage rather than accuracy: NetSurfP-3.0 reports that it "and
+NetSurfP-2.0 achieve similar accuracy on all datasets", the alignment-based version being ahead on one
+structure-prediction set, at a 665-fold speed-up; in DeepTMHMM a 2001 single-sequence method still wins
+membrane-protein type classification 98.66 against 98.32 per cent, and an alignment-based predictor wins
+topology 85.79 against 83.46. Against trivial features the model wins clearly: the same feed-forward
+network scores area under the curve 0.641 on substitution-matrix features and 0.762 on ESM-2 embeddings
+(p < .001), and one-hot encoding loses to both alignments and language models on secondary structure
+(0.573 against 0.711). Its reported edge is concentrated at low identity and in low-data classes. None
+of the six papers read for this includes a random-weight twin.
+
 **Recommended check.** Run three baselines on exactly the scored items with the same tuning budget as
 the model: composition features, single-sequence homology transfer, and a profile or alignment method if
 one exists for the task. Add the same architecture with random weights. State which class each belongs
@@ -329,6 +353,10 @@ even after reverse-complement augmentation. In that paper averaging the two stra
 **not** recover what augmentation achieves: it trails augmentation on the Matthews correlation
 coefficient in most of the comparisons reported, so measure the disagreement rather than assuming a fix.
 
+The model-by-model instances of these, with the repository and issue references, are on
+[`../models-and-compute/biological-sequence-models.md`](../models-and-compute/biological-sequence-models.md#loading-traps-that-change-the-numbers),
+together with each model's licence and tokenisation.
+
 **Recommended check.** Before any benchmark number: reproduce one published figure from the model's own
 paper or card, or at minimum show the forward pass differs from a randomly initialised copy; compare a
 sample of embeddings against a single-sequence, float32, processor-only run; and for a nucleotide model,
@@ -358,6 +386,12 @@ models. Vieira et al. 2025 fit linear mixed-effects models treating the dataset 
 What no source read here reports is an intraclass correlation or a design effect for a sequence
 benchmark, or a side-by-side comparison of a group-level interval with an item-level one, so the size
 of the gap is undocumented rather than unmeasurable.
+
+One concrete instance of the wrong unit, from the applied literature: a tool bootstraps 10,000
+resamples of individual *residues* drawn from 5 and from 15 antigens, which describes variation between
+residues while the claim is about antigens; another attributes a loss on a 21-protein set to
+"statistical fluctuations" without computing an interval. None of the six papers resamples its
+partitions.
 
 **Published case:** Cameron, Gelbach and Miller 2008
 (doi:[10.1162/rest.90.3.414](https://doi.org/10.1162/rest.90.3.414)) find cluster-robust tests
@@ -501,9 +535,11 @@ leaky division, for example ESM-1b 0.620 against 0.680 and ESM2 650M 0.523 again
 correlation, and the step from 3 billion to 15 billion parameters gains nothing on the clean division
 (0.674 against 0.670) while gaining on the leaky one. Read as a caution rather than a settled result:
 the paper reports one run per model with no seeds or intervals, and the two divisions differ in more
-than leakage. For a model pre-trained on a near-exhaustive database, overlap reporting is a formality: the honest
-position is that the sequences are presumed seen and only the **labels** are unseen, and the claim
-should say so in those words. The designs that recover a genuinely unseen evaluation are time-based
+than leakage. For a model pre-trained on a near-exhaustive database, overlap reporting is a formality, and the
+authors of the homology-partitioning algorithm used by the applied tools say why: pre-training corpora
+are "beyond the scale amenable to homology separation". So no split in that literature separates test
+proteins from the pre-training data. The honest position is that the sequences are presumed seen and
+only the **labels** are unseen, and the claim should say so in those words. The designs that recover a genuinely unseen evaluation are time-based
 (sequences deposited after the checkpoint was frozen) or a collection deliberately withheld from all
 pre-training, both of which are in the list of what this field does better, below.
 
@@ -578,7 +614,7 @@ say which class each is, and the claim that survives is narrower and worth more.
 
 ---
 
-Last verified: 2026-11-15. New page, from a structured read of eleven DNA model papers, thirteen protein
+Last verified: 2026-11-15. (Additions 2026-11-15: a pointer from step 5 to the model-by-model loading traps and licences on `models-and-compute/biological-sequence-models.md`.) Last verified: 2026-11-15. New page, from a structured read of eleven DNA model papers, thirteen protein
 model papers, the RNA, codon and single-cell literature, eight benchmark suites, about twenty independent
 re-evaluations and the validation and statistics primary sources, each evaluation task recorded against
 eleven fixed columns with a verbatim quote. Two independent reviews then ran against it, one on
@@ -612,10 +648,15 @@ against specialised expert models. The claim is now about the class of comparato
 evidence supports.
 
 Limits, stated rather than left to the reader. The counts are over the papers read for this page, not
-over the field. The most-cited production tools (SignalP, DeepTMHMM, DeepLoc, NetSurfP, BepiPred) were
-read only for their split methodology during review, and all separate train and test at a stated 20 to
-30 per cent identity threshold, so that subfield has stronger split discipline than the model papers do.
-Quotations were checked against the saved text of the paper each is attributed to. Read at abstract level
+over the field. The most-cited production tools (SignalP 6.0, DeepTMHMM, DeepLoc 2.0,
+NetSurfP-3.0, BepiPred-3.0) and the homology-partitioning algorithm they use were then read in full for
+split methodology, baselines, error bars and readout, and their findings are in steps 2, 4 and 6 and in
+the contamination pitfall: four of the five enforce a stated identity threshold by partitioning rather
+than clustering, which is stricter than the model papers and benchmark suites; against profile methods
+the language model buys speed rather than accuracy; none includes a random-weight twin; none states
+which layer it reads; and error bars are nearly absent, the one statistical test resampling residues
+rather than antigens. DeepTMHMM has no peer-reviewed version and was read as its preprint.
+Quotations were checked against the saved text of the paper each is attributed to, except the five from the applied-tool pass, whose sources were read as Europe PMC full text during that pass and are traced to its notes rather than to a saved file of the paper. Read at abstract level
 only: Obuchowski 1997 (PMID 9192452), whose quoted sentence is from that abstract. Cited at the version
 read rather than the version of record, and so stated: Bernett, Blumenthal and List; Meier et al.; Bates,
 Hastie and Tibshirani; Cameron, Gelbach and Miller. Not verified, and stated on the page rather than
