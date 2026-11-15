@@ -483,7 +483,7 @@ Imoto 2023 ([doi:10.1093/bioinformatics/btad617](https://doi.org/10.1093/bioinfo
 report a DNABERT pre-trained on 3 gigabases of *random* sequence scoring 0.8965 against
 0.8991 median AUROC for the real model across 690 datasets, so the untrained twin belongs
 in the same table. More
-in [`../evaluation/biological-sequence-model-evals.md`](../evaluation/biological-sequence-model-evals.md#step-4-fit-a-baseline-that-uses-no-model).
+in [`../evaluation/biological-sequence-model-evals.md`](../evaluation/biological-sequence-model-evals.md#step-4-fit-a-baseline-that-uses-no-model-and-name-which-class-it-is).
 
 **Recommended check.** Report the trivial baselines (length, position, source)
 next to any detector, and re-score within strata of the obvious confound: an
