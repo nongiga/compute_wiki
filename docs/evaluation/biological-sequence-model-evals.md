@@ -15,7 +15,7 @@ covers the other half of the bio portfolio, where a chat or agentic model is sco
 knowledge and task performance, and already carries two results about biological models themselves
 (pre-training data filtering undone cheaply, and agentic mutation design).
 
-Aliases: biological language model (bioLM) evaluation, protein language model (pLM) benchmark, DNA language model (DNA LM) benchmark, genomic language model (gLM) evaluation, genomic foundation model benchmark, RNA language model benchmark, sequence model probing, embedding readout, mean pooling, layer selection, masked marginal likelihood, pseudo-log-likelihood, homology-aware split, gene-family split, clade holdout, leave-one-organism-out, sequence identity threshold, homology partitioning (GraphPart, MMseqs2, CD-HIT), k-mer baseline, zero-shot variant effect prediction, deep mutational scanning (DMS), ESM, Evo, Nucleotide Transformer, DNABERT, HyenaDNA, Caduceus, RNA-FM, ProteinGym, FLIP, TAPE, BEND, DART-Eval, GUE, DGEB.
+Aliases: biological language model (bioLM) evaluation, protein language model (pLM) benchmark, DNA language model (DNA LM) benchmark, genomic language model (gLM) evaluation, genomic foundation model benchmark, RNA language model benchmark, sequence model probing, embedding readout, mean pooling, layer selection, masked marginal likelihood, pseudo-log-likelihood, homology-aware split, gene-family split, clade holdout, leave-one-organism-out, sequence identity threshold, homology partitioning (GraphPart, MMseqs2, CD-HIT), homology leakage, data leakage, kmer and k-mer baseline, CLS token, summary token, AUROC, AUPRC, precision-recall, multiple comparisons, multiplicity, hyperparameter and hyper-parameter, from_pretrained, randomly initialised and randomly initialized, zero-shot variant effect prediction, deep mutational scanning (DMS), ESM, Evo, Nucleotide Transformer, DNABERT, HyenaDNA, Caduceus, RNA-FM, ProteinGym, FLIP, TAPE, BEND, DART-Eval, GUE, DGEB.
 
 The setting in mind is a frozen open-weights sequence model, read with a probe or a likelihood, scored
 against labels from a public database or an assay. The evidence below comes from a read of eleven DNA
@@ -40,13 +40,17 @@ record).
 
 | You are about to… | Worth checking | Because |
 |---|---|---|
-| report a score from a random train and test division | whether relatives, gene families or repeated positions sit on both sides | the drop to a homology-aware division is larger than the model-versus-baseline gap being claimed |
+| state what your result generalises to | which unit the claim is about, and how many of that unit you have | the unit sets both the split and the error bar, and a chromosome hold-out is not a homology hold-out |
+| pool labels from several assays or databases | whether the annotation was itself assigned by sequence similarity, and what condition it was measured under | a model can pass by approximating the rule that produced the labels |
+| report a score from a random train and test division | whether relatives, gene families or repeated positions sit on both sides, which is homology leakage | the drop to an identity-aware division is larger than the model-versus-baseline gap being claimed |
 | claim a pre-trained model beats the alternatives | a k-mer composition baseline and a homology-transfer baseline, tuned as hard as the model | where a re-evaluation added one, it matched or beat the model in every model family examined |
-| pick a layer, a pooling rule or a likelihood score | whether that choice was made on the data you are about to report | the readout moves results by tens of points, and choosing on the reported cross-validation folds is worth up to 12 points of optimism on signal-free data |
+| pick a layer, a pooling rule or a likelihood score | whether that choice was made on the data you are about to report | the readout (that combination of choices) moves results by tens of points, and choosing on the reported cross-validation folds cost 12 points of accuracy on data built to carry no signal |
 | call a result zero-shot | whether the evaluation sequences were in the pre-training corpus | contamination has changed a scaling conclusion, not only a score |
 | adopt a public benchmark as a fixed yardstick | how its tasks were selected | several kept only tasks where existing models scored in a chosen band |
 | say a model shows no signal on a task | a planted positive control and a smallest effect stated in advance | without them, absence of signal and failure to elicit look identical |
 | read a claim that the model generated something functional | the funnel: generated, filtered, screened, human-selected, assayed, worked | one published pipeline filtered about 2 million generations down to 11 laboratory candidates, with a manual last step |
+| put a confidence interval on an AUROC or a rank correlation, or an error bar on a benchmark number | what unit it resamples, and how many groups there are | the inflation scales with group size, so a family of ten inflates little and a chromosome of thousands inflates a lot |
+| report a winning configuration | how many configurations were tried to find it | nothing in this literature corrects for the count, and most headlines are a maximum over readings |
 | trust the numbers at all | that the checkpoint loaded, and in the right numerical precision | one released checkpoint loads as random weights with only a warning |
 
 ## Why this differs from a chat-model eval
@@ -65,21 +69,38 @@ Relatedness is the dominant structure. Items share ancestry, and in a pair task 
 many pairs. This has no chat-model analogue, and the strongest practice in the literature comes from
 it: holding out a whole clade or species and reporting what that costs.
 
-## The signature experimental shape
+## Which steps apply to you
 
-1. Fix the claim, and say what population it is about: these organisms, or organisms like these.
-2. Build the item set and divide it by the unit that shares information.
-3. Choose how the model is read, using only data you will not report.
-4. Fit the baselines, including one that uses no model.
-5. Check the instrument numerically before scoring anything.
-6. Score, with an interval whose unit matches the claim from step 1.
-7. Report the size of the search that produced the configuration.
+The steps below are written for several kinds of experiment, and some do not apply to yours. Read this
+row first and skip the rest.
 
-## Step 1: Say what population the claim is about
+| Your setup | Steps that apply | Steps to skip |
+|---|---|---|
+| Amino-acid model, read with a probe on embeddings | 1, 2, 3, 4, 5, 6, 7, and the no-signal checks | the likelihood part of step 3; the reverse-complement part of step 5; the generated-sequences section |
+| Nucleotide model, read with a probe on embeddings | all of them | the likelihood part of step 3; the generated-sequences section |
+| Any model, scored by likelihood with no training | 1, 2, 4, 5, 6, 7 | step 3's layer and pooling parts (there is no probe to tune) |
+| Generative claim ("the model designed something that works") | 1, 5, and the generated-sequences section | steps 3 and 6, which are about a fitted readout |
 
-This decides the statistics rather than following from them. "This model works on organisms like these"
-makes the organism the unit of independent evidence. "This model works on these four organisms" makes
-the item the unit. Both are legitimate; they need different error bars and different numbers of groups.
+## Step 1: Name the unit your claim generalises over
+
+This decides the statistics rather than following from them, and it is the choice most often left
+implicit. A claim generalises over some unit, and the error bar and the split both have to use that
+unit. The units actually used in this literature, in rough order of how often they appear:
+
+| Unit | Used when | Where it appears |
+|---|---|---|
+| Sequence identity cluster | the default for protein work, and the only unit that stops a near-copy crossing the split | identity thresholds with MMseqs2, CD-HIT, UniRef clusters |
+| Gene, protein or RNA family | the claim is about a new family rather than a new member | Rfam family splits in RNA structure; paralogue-group splits |
+| Chromosome | the commonest unit in DNA work, and cheap to apply | held-out chromosomes in nearly every genome-model paper |
+| Position within a protein | mutational scanning, where positions recur across items | held-out-position splits in fitness benchmarks |
+| Assay or dataset | many small experiments, each with its own scale and noise | per-assay averaging in variant-effect suites |
+| Time of deposition | the strongest unit available, because nothing later could leak | function-prediction challenges; structure targets released after a freeze |
+| Organism, genus or clade | multi-species models, or a claim about an unseen lineage | a minority of papers, almost all multi-species DNA models |
+
+**A chromosome hold-out is not a homology hold-out.** It is the most common split in DNA work and the
+easiest to over-trust: paralogues sit on other chromosomes, so a held-out chromosome can still contain
+near-copies of training sequence. Report both the chromosome split and an identity-aware split if the
+claim is about new sequence rather than new loci.
 
 Roberts et al. 2017 (doi:[10.1111/ecog.02881](https://doi.org/10.1111/ecog.02881), "Cross-validation
 strategies for data with temporal, spatial, hierarchical, or phylogenetic structure") states the
@@ -88,10 +109,30 @@ structures (i.e. new locations, new time periods, new individuals or groups, or 
 a phylogeny)", and "when models only predict on the same individuals or groups by which they were
 trained, random cross-validation may yield fair error estimates".
 
-**Recommended check.** Write the claim as one sentence before building anything, and name the unit it
-generalises over. Then count how many of that unit you have. See
-[`../engineering/research-rigor.md`](../engineering/research-rigor.md) for the commitment points, and
-step 6 below for what a small count does to an interval.
+**Recommended check.** Write the claim as one sentence before building anything, name the unit it
+generalises over, and count how many of that unit you have. The count matters as much as the choice:
+step 6 explains what a small one does to an interval, and a unit with thousands of members per group
+behaves very differently from one with ten. See
+[`../engineering/research-rigor.md`](../engineering/research-rigor.md) for the commitment points.
+
+## Step 1b: Say where the labels came from
+
+A benchmark can be passed by a model that approximates whatever produced the labels. Two cases matter
+here. First, **label circularity**: many functional annotations were themselves assigned by sequence
+similarity, so predicting them from sequence partly recovers the assignment rule rather than the
+biology. Second, **assay heterogeneity**: labels pooled from different experiments carry the experiment
+with them, and when the experiment is confounded with the group being held out, a cross-group result is
+partly a cross-experiment result. Essentiality, expression and fitness are all condition-dependent, so
+the condition is part of the label.
+
+**Recommended check.** Before splitting, record for each label: the assay or database that produced it,
+whether that assignment used sequence similarity, and what condition it was measured under. Count
+ambiguous or intermediate labels and say how they were handled rather than folding them into the
+negative class. Where several assays contribute, report the metric per assay as well as pooled, since
+class balance and noise differ between them. Most biological label sets are strongly imbalanced, so
+report the area under the precision-recall curve (AUPRC) beside the area under the
+receiver-operating-characteristic curve (AUROC); see
+[`eval-statistics.md`](eval-statistics.md) for which one resolves what.
 
 ## Step 2: Divide the items by the unit that shares information
 
@@ -118,10 +159,11 @@ further 10.12 points lower.
 
 The cleanest demonstration is one model against itself. Two versions of the Bacformer preprint
 (doi:[10.1101/2025.07.20.665723](https://doi.org/10.1101/2025.07.20.665723)) share a single identifier
-and reach opposite conclusions on gene essentiality: the earlier version's random 60/20/20 division has
-it beating ESM-2 and Evo, while the later version's genus-level division puts four other models above
-it (ProtBERT 82.45, ESM-C 81.18, gLM2 80.57, ESM-2 80.40 against Bacformer 79.49, n = 11 genomes). The
-later main text does not state the reversal, so a citation needs a version pin.
+and reach opposite conclusions on gene essentiality. Under the first version's random 60/20/20
+division, Bacformer beats ESM-2 and Evo. Under the third version's genus-level division, four other
+models beat it: ProtBERT 82.45, ESM-C 81.18, gLM2 80.57 and ESM-2 80.40 against Bacformer 79.49, all
+area under the receiver-operating-characteristic curve (AUROC) as percentages over n = 11 genomes. The
+third version's main text does not state the reversal, so a citation needs a version pin.
 
 The opposite error exists. Roberts et al. 2017 show blocked folds can be "overly-pessimistic", because
 a held-out clade becomes an extrapolation rather than a held-out sample.
@@ -135,7 +177,7 @@ on [`../engineering/measurement-validity.md`](../engineering/measurement-validit
 [`../interpretability/probes.md`](../interpretability/probes.md#pitfalls-cross-cutting); they are not
 repeated here.
 
-## Step 3: Choose the readout on data you will not report
+## Step 3: Choose the readout (layer, pooling rule and scoring rule) on data you will not report
 
 A frozen model does not have one representation. Which layer, which pooling rule, whether the model is
 fine-tuned, and which likelihood score is used are hyper-parameters of the measurement. Two failure
@@ -148,7 +190,8 @@ and a relative difference "as high as 38%" between the best and worst layer on o
 760,000 probes fitted. Feng et al. 2025
 (doi:[10.1038/s41467-025-65823-8](https://doi.org/10.1038/s41467-025-65823-8)) find averaging over
 tokens beats the model's own summary token on 35 to 42 of 52 classification datasets per model, worth
-a mean area-under-the-curve gain the paper states as 1.4 to 8.7 per cent depending on the model (its own
+a mean gain in the area under the receiver-operating-characteristic curve (AUROC) that the paper states
+as 1.4 to 8.7 per cent depending on the model (its own
 framing; the largest single case moves the curve from 0.689 to 0.864), and narrowing the spread between models
 from 0.708-0.799 up to 0.795-0.822. Vieira et al. 2025
 (doi:[10.1038/s41598-025-05674-x](https://doi.org/10.1038/s41598-025-05674-x)) find mean pooling beats
@@ -168,8 +211,9 @@ cross-validation inside the training division, then the test set is scored once.
 
 This page's synthesis, not any one paper's: across the thirteen protein model papers read, the final
 layer with mean pooling is fixed in advance in nine, and pooling is compared in exactly one. The DNA
-papers search exhaustively and report the maximum. So one literature risks selection bias and the other
-risks an unexamined default, and the default it picks is the layer the layer studies above find weakest.
+papers search exhaustively and report the maximum. So the DNA literature risks selection bias and the
+protein literature risks an unexamined default, and the default the protein papers pick is the final
+layer, which the layer studies above find weakest for homology information.
 
 **Recommended check.** Treat the readout as a hyper-parameter: select it inside the training folds,
 record which setting won in each fold, and report the spread across settings. Unstable winners across
@@ -188,8 +232,9 @@ include one.
 Published case: Sanabria et al. 2024
 (doi:[10.1038/s42256-024-00872-0](https://doi.org/10.1038/s42256-024-00872-0), GROVER) report a tuned
 bag-of-k-mers control (term-frequency weighting with a random forest) reaching a Matthews correlation
-coefficient (scaled as a percentage, as that paper reports it) of up to 87 on promoter tasks and 72 on a
-transcription-factor binding task against 61 for Nucleotide Transformer, leaving splice sites as the clear language-model win. Yang et al. 2024
+coefficient (MCC, scaled as a percentage, as that paper reports it) of up to 87 on promoter tasks where
+the genome model reached 61 to 76, and 72 on a transcription-factor binding task against 61 for
+Nucleotide Transformer, leaving splice sites as the clear language-model win. Yang et al. 2024
 (arXiv:[2406.15669](https://arxiv.org/abs/2406.15669), "CARE: a Benchmark Suite for the Classification
 and Retrieval of Enzymes", NeurIPS Datasets and Benchmarks) report BLASTp within four points of an
 ESM-based enzyme classifier and ahead of it on enzymes with several functions, 93.7 against 69.4 per
@@ -204,8 +249,9 @@ highly variable genes separate cell types better than two single-cell foundation
 An untrained twin is the cheapest control and frequently decisive. Vishniakov et al.
 (doi:[10.1101/2024.12.18.628606](https://doi.org/10.1101/2024.12.18.628606), "Genomic Foundationless
 Models: Pretraining Does Not Promise Performance", preprint; later versions retitled) report a
-randomly initialised Caduceus reaching about 0.62 mean Matthews correlation on the Nucleotide
-Transformer histone and enhancer tasks, above pre-trained Nucleotide Transformer 500M. Zhang, Bai and
+randomly initialised Caduceus reaching about 0.62 mean Matthews correlation coefficient (MCC) on the
+Nucleotide Transformer histone and enhancer tasks, above pre-trained Nucleotide Transformer 500M,
+Nucleotide Transformer v2 50M and GENA-LM on the same tasks. Zhang, Bai and
 Imoto 2023 (doi:[10.1093/bioinformatics/btad617](https://doi.org/10.1093/bioinformatics/btad617))
 give the null-corpus version: a DNABERT pre-trained on 3 gigabases of random sequence scores 0.8965
 against 0.8991 median area under the curve for the real model across 690 datasets. Wong et al. 2025
@@ -225,14 +271,18 @@ equal tuning budgets matter because which method wins can flip with budget.
 Every rule above assumes the numbers coming out of the model are the numbers the model would produce.
 Several documented cases say otherwise, and none raises an error.
 
-Published case, repository-level and checked on the sources on 2026-11-15: one released checkpoint
-(ESM C 6B, republished 2026-09) loads as random weights through the standard loading path with only a
-warning; one bacterial model (Bacformer) returns wrong outputs with no error under the current major
-version of the `transformers` library; Evo 1 must be loaded at a specific revision tag; ESM-2 produced
-wrong embeddings on Apple GPUs; one model's default mixed-precision setting was not reproducible run to
-run, and batch padding changed another model's embeddings; HyenaDNA pads on the left and ships no
-attention mask, so padding enters any average; two RNA models use opposite uracil and thymine
-alphabets, so the same sequence string means different things to each.
+**Three of these are properties of the models and will not change.** HyenaDNA pads on the left and
+ships no attention mask, so padding enters any average. Batch padding changes embeddings wherever
+pooling does not exclude it. Two RNA models use opposite uracil and thymine alphabets, so the same
+sequence string means different things to each.
+
+**Five more were live on 2026-11-15 and are expected to be fixed, so read them as examples of the
+failure class rather than as a current bug list.** One released checkpoint (ESM C 6B, republished
+2026-09) loaded as random weights through the standard loading path with only a warning. One bacterial
+model (Bacformer) returned wrong outputs with no error under the then-current major version of the
+`transformers` library. Evo 1 had to be loaded at a specific revision tag. ESM-2 produced wrong
+embeddings on Apple GPUs. One model's default mixed-precision setting was not reproducible run to run.
+Each was checked against repositories, model cards and issue threads on that date; none carries a paper.
 
 Models are also not invariant to transformations biology says they should be. Feng et al. 2025 report
 fine-tuned Nucleotide Transformer v2 and HyenaDNA changing their predicted class on 4 to 15 per cent of
@@ -246,33 +296,62 @@ score each sequence and its reverse complement and report the disagreement rate.
 the run directory. Keep this check clearly separate in code and in the write-up from the deliberate
 random-weight baseline of step 4.
 
-## Step 6: Give the interval the unit from step 1
+## Step 6: Put the error bar on the unit from step 1
 
-Published case: Obuchowski 1997 (PMID 9192452, read at abstract level) extends the correlated-area
-method to clustered data and states that "the size of statistical tests that assume independence is
-inflated in the presence of intracluster correlation". Cameron, Gelbach and Miller 2008
+An interval answers "how much would this move if I drew the data again?". If the resampling unit is the
+single item while the claim is about new families, new chromosomes or new species, the interval is
+describing the wrong draw. The size of the problem scales with how many items sit in a group, which is
+why this matters much more for some units than others.
+
+**How much it matters, as arithmetic.** With a design effect written 1 + (m - 1) * rho, where m is the
+group size and rho the within-group correlation: a gene family of 10 members with a strong rho of 0.1
+gives about 1.9, while a chromosome or a whole genome holding thousands of genes gives a large number
+even at a rho of 0.001. So an identity-cluster or family split, which is the common case, inflates the
+variance modestly; a chromosome or organism split, which is rarer, inflates it a lot. Compute it rather
+than assume it either way.
+
+**What the field does.** Group-level uncertainty is computed, though rarely compared against the
+item-level alternative. TraitGym calculates the area under the precision-recall curve (AUPRC) per
+chromosome for a model trained on the remaining chromosomes, then a sample-size-weighted average with a
+cluster-resampled standard error across at most 22 or 23 chromosomes, for a set of genomic language
+models. Vieira et al. 2025 fit linear mixed-effects models treating the dataset as a random effect.
+What no source read here reports is an intraclass correlation or a design effect for a sequence
+benchmark, or a side-by-side comparison of a group-level interval with an item-level one, so the size
+of the gap is undocumented rather than unmeasurable.
+
+**Published case:** Cameron, Gelbach and Miller 2008
 (doi:[10.1162/rest.90.3.414](https://doi.org/10.1162/rest.90.3.414)) find cluster-robust tests
-over-reject with few (5 to 30) clusters, and that a wild cluster bootstrap holds its nominal size with
-as few as about 6. Bates, Hastie and Tibshirani (arXiv:[2104.00673](https://arxiv.org/abs/2104.00673))
-find naive cross-validation intervals undercover, 31 per cent miscoverage at a nominal 10 per cent.
-Felsenstein 1985 (doi:[10.1086/284325](https://doi.org/10.1086/284325)) is the origin of the
-effective-sample-size point for related species: with four pairs of close relatives among eight
-species, "the effective number of degrees of freedom is closer to 2".
+over-reject with few (5 to 30) clusters. Bates, Hastie and Tibshirani
+(arXiv:[2104.00673](https://arxiv.org/abs/2104.00673)) find naive cross-validation intervals undercover,
+31 per cent miscoverage at a nominal 10 per cent. Obuchowski 1997 (PMID 9192452, abstract only) gives
+the clustered form for an area under the receiver-operating-characteristic curve (AUROC) and states that
+"the size of statistical tests that assume independence is inflated in the presence of intracluster
+correlation". Felsenstein 1985 (doi:[10.1086/284325](https://doi.org/10.1086/284325)) is the origin of
+the effective-sample-size point for related species.
 
-What is not established, and this page does not assert it: that within-clade correlation is large
-enough to matter for a benchmark metric. The clustered result above is conditional on intracluster
-correlation existing, and no source read here measures it for a sequence benchmark. Roberts et al. 2017
-note that phylogenetically blocked cross-validation "has not been undertaken in the phylogenetic
-literature" as of their writing. An item-level paired interval is correct for the claim "on these
-items, model A beats model B", which is what most benchmark tables assert; the defect worth looking for
-is a mismatch between that interval and a wider sentence in the abstract.
+**Recommended check, by how many groups you have.** The simplest analysis that works is to compute the
+metric separately per group, then report the mean with a t interval on G - 1 degrees of freedom.
 
-**Recommended check.** Compute the metric's variance with the group as the cluster and divide it by the
-naive item-level variance. That ratio is the design effect: near 1 means item-level intervals were
-adequate, and 3 means the interval understates the spread by about the square root of 3. Report the
-ratio, the number of groups, and which population the interval describes. With few groups prefer a wild
-cluster bootstrap or a permutation test at group level, and show the per-group scores rather than only
-their mean. For the clustered machinery and the resolution question see
+| Groups | What to use |
+|---|---|
+| 30 or more | a cluster-resampled standard error, or a bootstrap over groups |
+| about 6 to 30 | the per-group metric with a t interval, or a sign-flip permutation test |
+| fewer than 6 | report per-group numbers and call the result descriptive |
+
+Three cautions. An item-level interval describes only the items you scored under the split you fitted,
+and supports no statement about further items, which is the distinction step 2 rests on. When the claim
+is a comparison, compute everything on the paired per-group difference rather than on either arm. And
+the design effect is itself an estimate on roughly G - 1 degrees of freedom, so a value near 1 is weak
+evidence of adequacy rather than proof of it, and is only readable from roughly 20 to 30 groups upward.
+
+For an AUROC the two variances need named estimators rather than a generic clustered standard error of
+a mean: DeLong's components for the item-level denominator, and the same components summed within groups
+for the numerator. Unequal group sizes bias the ratio low, and the weighted group size is the sum of
+squared sizes over the sum of sizes, not the arithmetic mean. The design effect itself is defined on
+[`../engineering/statistics.md`](../engineering/statistics.md#clustered-items) as
+(SE_clustered / SE_plain)^2 and used there to inflate a required sample size; here it is used the other
+way, to ask whether an interval already computed was adequate. For the clustered machinery and the
+resolution question see
 [`eval-statistics.md`](eval-statistics.md#clustered-items-passages-images-problem-sheets-and-shared-tasks).
 
 ## Step 7: Report the size of the search
@@ -338,8 +417,9 @@ Absence of signal and failure to elicit look identical from one number.
 
 Published case: Hewitt and Liang 2019 (arXiv:[1909.03368](https://arxiv.org/abs/1909.03368)) define the
 control task, where each item keeps the label frequencies but gets a random label: a linear
-part-of-speech probe scores 97.2 against 71.2 on the control, so selectivity 26.0, while a more
-expressive probe scores 97.3 against 92.8, so selectivity 4.5. A search of the protein and DNA sources
+part-of-speech probe scores 97.2 per cent accuracy against 71.2 per cent on the control task, so a
+selectivity (the real score minus the control score) of 26.0, while a more expressive probe scores 97.3
+against 92.8, so a selectivity of only 4.5. A search of the protein and DNA sources
 read for this page found no use of control tasks, description-length probing or whole-pipeline label
 permutation, so this is a method the neighbouring field has and this one does not yet.
 
@@ -370,8 +450,11 @@ from protein LLM pretraining", preprint, no journal version listed) re-ran the F
 task on a pre-training-aware division and report all seven ESM variants scoring higher on the leaky
 division, mean Spearman about 0.603 against 0.548, and the step from 3 billion to 15 billion parameters
 gaining nothing on the clean division (0.674 against 0.670), so contamination was holding up a scaling
-conclusion as well as a score. State what is unseen and what is presumed seen, and report corpus
-overlap at a declared identity threshold where the corpus is documented.
+conclusion as well as a score. For a model pre-trained on a near-exhaustive database, overlap reporting is a formality: the honest
+position is that the sequences are presumed seen and only the **labels** are unseen, and the claim
+should say so in those words. The designs that recover a genuinely unseen evaluation are time-based
+(sequences deposited after the checkpoint was frozen) or a collection deliberately withheld from all
+pre-training, both of which are in the list of what this field does better, below.
 
 **A negative set is manufactured, and its construction defines the task.** Negatives built by
 GC-matching, dinucleotide shuffling or by taking another model's false positives measure different
@@ -399,15 +482,9 @@ after seeing the correlations.
 
 ## Cross-references
 
-- Whether the instrument measures what you think, and trivial baselines in general:
-  [`../engineering/measurement-validity.md`](../engineering/measurement-validity.md)
-- Error bars when items share structure, and whether a benchmark can resolve a gap:
-  [`eval-statistics.md`](eval-statistics.md)
-- Fitting a probe, group-aware divisions, and decodability against use:
-  [`../interpretability/probes.md`](../interpretability/probes.md)
-- Pre-registration, commitment points and if-then rules for unattended runs:
-  [`../engineering/research-rigor.md`](../engineering/research-rigor.md) and
-  [`../engineering/reviewing-agent-decisions.md`](../engineering/reviewing-agent-decisions.md)
+The pages this one builds on are listed under Related pages at the top. Two neighbours are specific to
+biology and easy to miss:
+
 - Scoring a chat or agentic model for hazardous biological capability, and the two uplift trials:
   [`dangerous-capability-evals.md`](dangerous-capability-evals.md)
 - Safeguards on biological models themselves (pre-training data filtering, unlearning):
@@ -426,10 +503,11 @@ on all the data estimates nothing useful.
 
 ### My held-out group count is small. How small is too small for a group-level interval?
 
-Cluster-robust tests over-reject with 5 to 30 clusters, and a wild cluster bootstrap has held its size
-from about 6. Below that, prefer a permutation or sign test at group level and read its floor: with four
-groups, a two-sided sign test cannot return a p-value below 0.125 whatever the effect size, so the
-honest report is descriptive, with per-group numbers.
+Cluster-robust tests over-reject with 5 to 30 clusters. From about 6 groups up, the per-group metric
+with a t interval is the simplest thing that holds its coverage. Below that, report per-group numbers
+and call the result descriptive, because a two-sided sign test on four groups cannot return a p-value
+below 0.125 whatever the effect size. Note that the number of groups is not the number of items: a
+hundred thousand genes in four groups is a four-group problem.
 
 ### Which layer should I use for a protein or DNA model?
 
@@ -462,5 +540,5 @@ preprint rather than journal version: Bates, Hastie and Tibshirani; Cameron, Gel
 Vishniakov et al. The repository-level failures in step 5 were checked against repositories, model cards
 and issue threads on 2026-11-15 and carry no paper. Not verified: whether within-group correlation is
 large enough to change a benchmark interval, which step 6 states as unmeasured rather than asserting.
-Two fixes after the first draft: a page-level Aliases line was added, because the wiki's main reader retrieves one section at a time by keyword and the page had none; and two metric expressions were rewritten to say which scale they are on (an area-under-the-curve gain stated as a percentage by its source, and a Matthews correlation coefficient scaled as a percentage by its source). One-line summaries are Claude's wording, not the authors'. Drafted by Claude; pending MATS research-staff
+Revised 2026-11-15 after two independent reviews (one on citations and field coverage, one on utility, retrieval and durability). What changed: the page previously framed the unit of generalisation around the organism, which a frequency count of its own evidence showed is the fifth most common unit in this literature behind chromosome, sequence-identity cluster, family and random, so step 1 now leads with the unit menu in frequency order and the organism case is one row of it; step 6 was rewritten after a statistical audit found three defects (a wild cluster bootstrap was recommended for metrics it is not defined for, the square-root-of-the-design-effect reading holds for a standard error but understates a confidence interval when groups are few, and a design effect near 1 is weak evidence of adequacy rather than proof), and it now gives a per-group t interval by group-count regime and cites TraitGym's per-chromosome cluster-resampled standard error as the field's own example; the claim that nobody computes group-level uncertainty for a sequence benchmark was narrowed to the claim that nobody reports an intraclass correlation or design effect or compares the two kinds of interval, because two cited sources and TraitGym do compute group-level intervals; the contamination pitfall now says plainly that for a near-exhaustive pre-training corpus only the labels are unseen; a step on label provenance and circularity was added; the perishable repository-level examples in step 5 were separated from the three that are properties of the models and dated in the section text; a routing table says which steps apply to which setup; an Aliases line was added because the wiki's main reader retrieves one section at a time by keyword; four sections that had no at-a-glance row got one; and metrics, comparison arms and the definitions of readout and selectivity were supplied where a reader of a single section would not have had them. One-line summaries are Claude's wording, not the authors'. Drafted by Claude; pending MATS research-staff
 review.
